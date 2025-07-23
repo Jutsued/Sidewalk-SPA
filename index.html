@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Street Formatter</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx-populate/1.21.0/xlsx-populate.min.js"></script>
+  </head>
+  <body>
+    <h1 class="underline">Sidewalk Formatter</h1>
+    <div class="container">
+      <input type="file" id="fileInput" aria-label="File browser example" />
+
+      <!-- <input type="file" id="fileInput" /> -->
+      <div class="buttons">
+        <button class="btnActive">Format</button>
+        <button class="btnReset">Reset</button>
+      </div>
+    </div>
+    <div id="notificationOutput">Formatting complete!</div>
+
+    <footer class="footer container section">
+      <h3 class="footer__title">
+        &copy; 2025 Pablo A. Bonilla || Sidewalk Formatter App
+      </h3>
+    </footer>
+    <script type="module" src="./script.js"></script>
+  </body>
+</html>
