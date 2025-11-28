@@ -14,7 +14,6 @@ let wordAbbreviations = {
   AVENUE: "Ave",
   Between: "b/t",
   Boulevard: "Blvd",
-  Court: "Ct",
   Drive: "Dr",
   Eastbound: "E/B",
   Expressway: "Expwy",
@@ -195,3 +194,4 @@ btnReset.addEventListener("click", () => {
     notification.classList.remove("show");
   }
 });
+
