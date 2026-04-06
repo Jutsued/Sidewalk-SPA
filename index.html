@@ -1,30 +1,859 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Street Formatter</title>
-    <link rel="stylesheet" href="./styles.css" />
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx-populate/1.21.0/xlsx-populate.min.js"></script>
-  </head>
-  <body>
-    <h1 class="underline">Sidewalk Formatter</h1>
-    <div class="container">
-      <input type="file" id="fileInput" aria-label="File browser example" />
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sidewalk Schedule Formatter — NYCDOT</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
 
-      <!-- <input type="file" id="fileInput" /> -->
-      <div class="buttons">
-        <button class="btnActive">Format</button>
-        <button class="btnReset">Reset</button>
+  <!-- SheetJS for reading the raw Excel file -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <!-- XlsxPopulate for writing formatted output (supports bold, merge, column widths) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx-populate/browser/xlsx-populate.min.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy:      #0d1e3d;
+      --navy-mid:  #1a3560;
+      --blue:      #1a56db;
+      --blue-lt:   #dbeafe;
+      --amber:     #d97706;
+      --amber-lt:  #fef3c7;
+      --green:     #065f46;
+      --green-lt:  #d1fae5;
+      --red:       #991b1b;
+      --red-lt:    #fee2e2;
+      --bg:        #f1f5f9;
+      --surface:   #ffffff;
+      --border:    #cbd5e1;
+      --text:      #0f172a;
+      --muted:     #64748b;
+      --radius:    10px;
+    }
+
+    body {
+      font-family: 'IBM Plex Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ───────────────────────────────────────────── */
+    header {
+      background: var(--navy);
+      color: white;
+      padding: 0 2rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      height: 64px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.35);
+    }
+    .logo-badge {
+      background: var(--amber);
+      color: white;
+      font-weight: 700;
+      font-size: .75rem;
+      letter-spacing: .12em;
+      padding: .3rem .55rem;
+      border-radius: 4px;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    header h1 {
+      font-size: 1rem;
+      font-weight: 600;
+      letter-spacing: .01em;
+    }
+    header p {
+      font-size: .8rem;
+      color: #94a3b8;
+      margin-left: auto;
+    }
+
+    /* ── Main layout ─────────────────────────────────────── */
+    main {
+      flex: 1;
+      max-width: 860px;
+      width: 100%;
+      margin: 2.5rem auto;
+      padding: 0 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    /* ── Cards ───────────────────────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.75rem 2rem;
+    }
+    .card-title {
+      font-size: .7rem;
+      font-weight: 700;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 1.1rem;
+    }
+
+    /* ── Drop zone ───────────────────────────────────────── */
+    #drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 2.5rem 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      position: relative;
+    }
+    #drop-zone:hover,
+    #drop-zone.drag-over {
+      border-color: var(--blue);
+      background: var(--blue-lt);
+    }
+    #drop-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+    .drop-icon {
+      font-size: 2.5rem;
+      margin-bottom: .75rem;
+      display: block;
+    }
+    .drop-main {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: .35rem;
+    }
+    .drop-sub {
+      font-size: .85rem;
+      color: var(--muted);
+    }
+    #file-name-display {
+      display: none;
+      margin-top: 1rem;
+      background: var(--blue-lt);
+      border: 1px solid #93c5fd;
+      border-radius: 6px;
+      padding: .6rem 1rem;
+      font-size: .875rem;
+      font-family: 'IBM Plex Mono', monospace;
+      color: #1e40af;
+      word-break: break-all;
+    }
+
+    /* ── Button ──────────────────────────────────────────── */
+    #process-btn {
+      width: 100%;
+      padding: .9rem 1.5rem;
+      background: var(--navy);
+      color: white;
+      border: none;
+      border-radius: var(--radius);
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .2s, transform .1s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: .6rem;
+    }
+    #process-btn:hover:not(:disabled) { background: var(--navy-mid); }
+    #process-btn:active:not(:disabled) { transform: scale(.99); }
+    #process-btn:disabled {
+      background: #94a3b8;
+      cursor: not-allowed;
+    }
+
+    /* ── Status ──────────────────────────────────────────── */
+    #status-area { display: none; }
+    .status-msg {
+      display: flex;
+      align-items: flex-start;
+      gap: .65rem;
+      padding: .85rem 1rem;
+      border-radius: 7px;
+      font-size: .9rem;
+      line-height: 1.5;
+    }
+    .status-msg.info    { background: var(--blue-lt);  color: #1e3a8a; }
+    .status-msg.success { background: var(--green-lt); color: var(--green); }
+    .status-msg.error   { background: var(--red-lt);   color: var(--red); }
+    .status-msg .icon   { font-size: 1.1rem; flex-shrink: 0; margin-top: .05rem; }
+
+    /* ── Results / stats ──────────────────────────────────── */
+    #results-area { display: none; }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: .75rem;
+      margin-bottom: 1.25rem;
+    }
+    .stat-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: .8rem 1rem;
+    }
+    .stat-num {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--navy);
+      font-family: 'IBM Plex Mono', monospace;
+      line-height: 1.1;
+    }
+    .stat-label {
+      font-size: .75rem;
+      color: var(--muted);
+      margin-top: .2rem;
+    }
+
+    #download-btn {
+      width: 100%;
+      padding: .9rem 1.5rem;
+      background: #065f46;
+      color: white;
+      border: none;
+      border-radius: var(--radius);
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: .6rem;
+    }
+    #download-btn:hover { background: #047857; }
+
+    /* ── Instructions ────────────────────────────────────── */
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+    }
+    .step {
+      display: flex;
+      gap: .8rem;
+      align-items: flex-start;
+    }
+    .step-num {
+      background: var(--navy);
+      color: white;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: .75rem;
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-top: .1rem;
+    }
+    .step-text strong {
+      display: block;
+      font-size: .875rem;
+      font-weight: 600;
+      margin-bottom: .2rem;
+    }
+    .step-text span {
+      font-size: .8rem;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    /* ── Manual fixes reminder ───────────────────────────── */
+    .fixes-list {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: .4rem .75rem;
+    }
+    .fix-item {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      font-size: .825rem;
+      color: var(--muted);
+    }
+    .fix-item code {
+      font-family: 'IBM Plex Mono', monospace;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      padding: .1rem .35rem;
+      border-radius: 4px;
+      font-size: .775rem;
+      color: var(--text);
+    }
+    .arrow { color: var(--amber); font-weight: 700; }
+
+    /* ── Footer ──────────────────────────────────────────── */
+    footer {
+      text-align: center;
+      padding: 1.25rem;
+      font-size: .775rem;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+    }
+
+    /* ── Spinner ─────────────────────────────────────────── */
+    .spinner {
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(255,255,255,.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<header>
+  <span class="logo-badge">NYCDOT</span>
+  <h1>Sidewalk Schedule Formatter</h1>
+  <p>Sidewalk Management Unit</p>
+</header>
+
+<main>
+
+  <!-- Upload Card -->
+  <div class="card">
+    <div class="card-title">Step 1 — Upload Raw Schedule File</div>
+    <div id="drop-zone">
+      <input type="file" id="file-input" accept=".xlsx" />
+      <span class="drop-icon">📂</span>
+      <div class="drop-main">Drop the NYCDOT Excel file here</div>
+      <div class="drop-sub">or click to browse &nbsp;·&nbsp; .xlsx files only</div>
+      <div id="file-name-display"></div>
+    </div>
+  </div>
+
+  <!-- Process Card -->
+  <div class="card">
+    <div class="card-title">Step 2 — Format</div>
+    <button id="process-btn" disabled>
+      <span id="btn-icon">⚙️</span>
+      <span id="btn-text">Format Schedule</span>
+    </button>
+    <div id="status-area" style="margin-top:1rem;"></div>
+  </div>
+
+  <!-- Results Card -->
+  <div class="card" id="results-area">
+    <div class="card-title">Step 3 — Download</div>
+    <div class="stats-grid" id="stats-grid"></div>
+    <button id="download-btn">
+      ⬇️ &nbsp;Download Formatted File
+    </button>
+  </div>
+
+  <!-- How it works -->
+  <div class="card">
+    <div class="card-title">How It Works</div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-text">
+          <strong>Upload</strong>
+          <span>Drop the raw weekly NYCDOT schedule Excel file you receive each week.</span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-text">
+          <strong>Auto-format</strong>
+          <span>The app applies all abbreviations, capitalization rules, and removes empty rows.</span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-text">
+          <strong>Download & review</strong>
+          <span>Download the formatted file. Do a quick pass for the known manual fixes below, then export to PDF.</span>
+        </div>
       </div>
     </div>
-    <div id="notificationOutput">Formatting complete!</div>
+  </div>
 
-    <footer class="footer container section">
-      <h3 class="footer__title">
-        &copy; 2025 Pablo A. Bonilla || Sidewalk Formatter App
-      </h3>
-    </footer>
-    <script type="module" src="./script.js"></script>
-  </body>
+  <!-- Manual fixes reminder -->
+  <div class="card">
+    <div class="card-title">Known Manual Fixes (usually ~12 entries)</div>
+    <div class="fixes-list">
+      <div class="fix-item"><code>E Macon Ave</code> <span class="arrow">→</span> <code>East Macon Ave</code></div>
+      <div class="fix-item"><code>E Marcon Ave</code> <span class="arrow">→</span> <code>East Marcon Ave</code></div>
+      <div class="fix-item"><code>S Beach Ave</code> <span class="arrow">→</span> <code>South Beach Ave</code></div>
+      <div class="fix-item"><code>N Conduit Ave</code> <span class="arrow">→</span> <code>North Conduit Ave</code></div>
+      <div class="fix-item"><code>W Broadway</code> <span class="arrow">→</span> <code>West Broadway</code></div>
+      <div class="fix-item"><code>W43rd St</code> <span class="arrow">→</span> <code>W 43rd St</code></div>
+      <div class="fix-item"><code>Macdougal St</code> <span class="arrow">→</span> <code>MacDougal St</code></div>
+      <div class="fix-item"><code>Punch-List</code> <span class="arrow">→</span> <code>Punch-list</code></div>
+    </div>
+  </div>
+
+</main>
+
+<footer>NYCDOT Sidewalk Management Unit &nbsp;·&nbsp; Internal Use Only</footer>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// 1. FORMATTING LOGIC  (ported from Python sidewalk_formatter.py)
+// ═══════════════════════════════════════════════════════════════
+
+const WORD_ABBREVIATIONS = {
+  "&":         "and",
+  "@":         "",
+  "And":       "and",
+  "At":        "at",
+  "Ave":       "Ave",
+  "Avenue":    "Ave",
+  "Between":   "b/t",
+  "Boulevard": "Blvd",
+  "Drive":     "Dr",
+  "East":      "E",
+  "Eastbound": "E/B",
+  "Expressway":"Expwy",
+  "From":      "",
+  "Lane":      "Ln",
+  "North":     "N",
+  "Northbound":"N/B",
+  "Of":        "of",
+  "On":        "on",
+  "Parkway":   "Pkwy",
+  "Place":     "Pl",
+  "Road":      "Rd",
+  "Roadway":   "Rway",
+  "South":     "S",
+  "Southbound":"S/B",
+  "Street":    "St",
+  "Turnpike":  "Tpke",
+  "West":      "W",
+  "Westbound": "W/B",
+};
+
+const FORCE_UPPERCASE = new Set([
+  "ne","nc","se","nw","sw","nb",
+  "sec","nec","swc","nwc",
+  "usa","ny","nycha","dpr","doe","ps",
+]);
+
+const IGNORE_PATTERNS = [
+  /^HWPR2[012][QKRMX][A-Z0-9]*\s+/i,
+  /^BLCOMPLNT\s+\d+/i,
+  /^HWS\d+[QR]/i,
+  /^HWP\d+[QRX]/i,
+];
+
+const SECTION_HEADERS = [
+  "Sidewalk Contracts:",
+  "Curb Contracts:",
+  "Bus Pad Contracts:",
+  "Pedestrian Ramp Upgrade Contracts:",
+  "Pedestrian Ramp New Installation Contracts:",
+];
+
+const PREPOSITIONS = new Set(["of","the","and","at","on","in","for","to","with","by","from"]);
+
+function shouldIgnore(text) {
+  return IGNORE_PATTERNS.some(p => p.test(String(text)));
+}
+
+// Capitalize a single word, respecting mixed-case compounds (Con-Edison)
+function capWord(w) {
+  if (!w) return w;
+  const isUniform = (w === w.toUpperCase() || w === w.toLowerCase());
+  if (isUniform) return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+  // Already mixed case — capitalize each hyphen part
+  return w.split('-').map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join('-');
+}
+
+// Abbreviate one slash-split part
+function formatPart(part) {
+  if (!part) return part;
+  const cap = part.trim().charAt(0).toUpperCase() + part.trim().slice(1).toLowerCase();
+  const r = WORD_ABBREVIATIONS[cap];
+  return r !== undefined ? r : cap;
+}
+
+function formatLocation(rawText) {
+  if (!rawText || rawText === 'null' || rawText === 'undefined') return rawText;
+  let line = String(rawText).trim();
+  if (!line) return line;
+  if (shouldIgnore(line)) return null;
+
+  // Pre-processing
+  line = line.replace(/"/g, '');
+  line = line.replace(/\./g, '');
+  line = line.replace(/\s*\/\s*/g, '/');  // "A / B" → "A/B"
+
+  const words = line.split(/\s+/);
+  const out = [];
+
+  for (let i = 0; i < words.length; i++) {
+    const word     = words[i];
+    const nextWord = words[i + 1] || null;
+
+    const leadM  = word.match(/^[(\-]+/);
+    const trailM = word.match(/[.,)\-:;]+$/);
+    const leadStr  = leadM  ? leadM[0]  : '';
+    const trailStr = trailM ? trailM[0] : '';
+    const cleaned  = word.slice(leadStr.length, trailStr ? word.length - trailStr.length : undefined);
+
+    const cap = capWord(cleaned);
+
+    // Word contains slash → abbreviate each part
+    if (cleaned.includes('/')) {
+      const rebuilt = cleaned.split('/').map(formatPart).join('/');
+      out.push(leadStr + rebuilt + trailStr);
+      continue;
+    }
+
+    // "Avenue:" → keep as "Avenue:"
+    if (cap === 'Avenue' && trailStr.includes(':')) {
+      out.push(leadStr + 'Avenue' + trailStr);
+      continue;
+    }
+
+    // Avenue / Ave before a single letter → keep/expand to "Avenue"
+    const nwBare = nextWord ? nextWord.replace(/[,.;: )]/g, '') : '';
+    if ((cap === 'Avenue' || cap === 'Ave') && /^[A-Za-z]$/.test(nwBare)) {
+      out.push(leadStr + 'Avenue' + trailStr);
+      continue;
+    }
+
+    // "East End …" → keep "East"
+    const nwClean = nextWord ? nextWord.replace(/[/:,]/g, '') : '';
+    if (cap === 'East' && nwClean.toLowerCase().startsWith('end')) {
+      out.push(leadStr + 'East' + trailStr);
+      continue;
+    }
+
+    // Direction words: smart rule
+    if (['East','West','North','South'].includes(cap) && cap in WORD_ABBREVIATIONS) {
+      const inParens   = leadStr.includes('(');
+      const nwStripped = nextWord ? nextWord.replace(/[/:,)( ]/g,'') : '';
+      const nwLower    = nwStripped.toLowerCase();
+      const nwIsDigit  = nextWord && /^\d/.test(nextWord);
+      const nwIsPrep   = !nwLower || PREPOSITIONS.has(nwLower);
+      if (inParens || nwIsDigit || nwIsPrep) {
+        out.push(leadStr + WORD_ABBREVIATIONS[cap] + trailStr);
+      } else {
+        out.push(leadStr + cap + trailStr);
+      }
+      continue;
+    }
+
+    // Standard lookup
+    const abbr = WORD_ABBREVIATIONS[cap];
+    if (abbr === '' && cap in WORD_ABBREVIATIONS) continue;  // drop word
+    out.push(leadStr + (abbr !== undefined ? abbr : cap) + trailStr);
+  }
+
+  line = out.join(' ').trim();
+  line = line.replace(/\s+/g,      ' ');
+  line = line.replace(/--+/g,      ' - ');
+  line = line.replace(/(\d)-(\d)/g,'$1 - $2');
+  line = line.replace(/\s+-\s+/g,  ' - ');
+  line = line.replace(/(\w)- /g,   '$1 - ');
+  line = line.replace(/\s*\//g,    '/');
+  line = line.replace(/\/\s*/g,    '/');
+  line = line.trim();
+
+  // Force uppercase tokens (NE, SW, NY, DOE, etc.) — also matches before digits (NE3, SW1)
+  for (const token of FORCE_UPPERCASE) {
+    const re = new RegExp(`\\b${token}(?=\\b|\\d)`, 'gi');
+    line = line.replace(re, token.toUpperCase());
+  }
+
+  return line;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 2. PARSE RAW FILE (using SheetJS to read rows as array-of-arrays)
+// ═══════════════════════════════════════════════════════════════
+
+function extractDateString(rows) {
+  for (let i = 0; i < Math.min(10, rows.length); i++) {
+    const val = String(rows[i][0] || '').trim();
+    if (/\d{4}/.test(val) && (/week of/i.test(val) || / to /i.test(val))) {
+      let d = val.replace(/(\d+)(st|nd|rd|th)/gi, '$1');
+      d = d.replace(/^week of\s*/i, '').trim();
+      return d + ' (Weather Permitting)';
+    }
+  }
+  return 'Construction Schedule (Weather Permitting)';
+}
+
+function parseRawRows(rows) {
+  const dateStr  = extractDateString(rows);
+  const sections = [];
+  let current    = null;
+
+  for (const row of rows) {
+    const colA = String(row[0] || '').trim();
+    const colB = String(row[1] || '').trim();
+    const colC = row[2];
+    const colD = String(row[3] || '').trim();
+
+    // New section header
+    if (SECTION_HEADERS.includes(colA)) {
+      current = { header: colA, twoRowHdr: false, rows: [] };
+      sections.push(current);
+      continue;
+    }
+    if (!current) continue;
+
+    // Header rows — detect style, skip
+    if (colA === 'Borough' && colB === '') { current.twoRowHdr = true; continue; }
+    if (colA === 'Borough' && colB === 'Contract No.') { current.twoRowHdr = false; continue; }
+    if (colB === 'Contract No.' && colA === '') continue;
+
+    // Footnotes / empty rows
+    if (colA.startsWith('*') || colB.startsWith('*')) continue;
+    if (!colA && !colB && (colC === null || colC === undefined || colC === '') && !colD) continue;
+
+    // Normalize CB to integer
+    let cb = null;
+    if (colC !== null && colC !== undefined && colC !== '') {
+      const n = parseInt(String(colC), 10);
+      cb = isNaN(n) ? colC : n;
+    }
+
+    current.rows.push([colA || null, colB || null, cb, colD || null]);
+  }
+
+  return { dateStr, sections };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 3. BUILD OUTPUT WORKBOOK (using XlsxPopulate for styling)
+// ═══════════════════════════════════════════════════════════════
+
+async function buildWorkbook(dateStr, sections) {
+  const wb = await XlsxPopulate.fromBlankAsync();
+  const ws = wb.sheet(0);
+
+  // Column widths (XlsxPopulate uses characters)
+  ws.column('A').width(22);
+  ws.column('B').width(16);
+  ws.column('C').width(6);
+  ws.column('D').width(70);
+
+  let r = 1;
+
+  // Helper: set a cell value + optional bold + optional center
+  function setCell(row, col, val, bold = false, center = false) {
+    const cell = ws.cell(row, col);
+    if (val !== null && val !== undefined) cell.value(val);
+    if (bold)   cell.style('bold', true);
+    if (center) cell.style('horizontalAlignment', 'center');
+    cell.style('fontFamily', 'Calibri');
+    cell.style('fontSize',    11);
+  }
+
+  // Helper: merge A–D on a row and set value
+  function mergeRow(row, val, bold = false, fontSize = 11) {
+    ws.range(row, 1, row, 4).merged(true);
+    const cell = ws.cell(row, 1);
+    if (val) cell.value(val);
+    cell.style('bold',       bold);
+    cell.style('fontFamily', 'Calibri');
+    cell.style('fontSize',   fontSize);
+  }
+
+  // Title block
+  mergeRow(r++, 'Sidewalk Management Unit',            false, 12);
+  mergeRow(r++, 'Construction and Inspection Schedule',false, 12);
+  mergeRow(r++, dateStr,                               false, 12);
+  mergeRow(r++, null);  // blank
+
+  // Sections
+  for (const sec of sections) {
+    mergeRow(r++, sec.header, true, 12);
+
+    // Column header row(s)
+    if (sec.twoRowHdr) {
+      setCell(r, 1, 'Borough',      true);
+      r++;
+      setCell(r, 2, 'Contract No.', false);
+      setCell(r, 3, 'CB',           false, true);
+      setCell(r, 4, 'Location',     false);
+      r++;
+    } else {
+      setCell(r, 1, 'Borough',      true);
+      setCell(r, 2, 'Contract No.', false);
+      setCell(r, 3, 'CB',           false, true);
+      r++;
+    }
+
+    // Data rows
+    for (const [borough, contract, cb, location] of sec.rows) {
+      let loc = location;
+      if (loc) {
+        if (shouldIgnore(loc)) continue;
+        loc = formatLocation(loc);
+        if (!loc) continue;
+      }
+      setCell(r, 1, borough,  !!borough);
+      setCell(r, 2, contract, false);
+      setCell(r, 3, cb,       false, true);
+      setCell(r, 4, loc,      false);
+      r++;
+    }
+
+    mergeRow(r++, null);  // blank row between sections
+  }
+
+  return wb;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 4.  UI LOGIC
+// ═══════════════════════════════════════════════════════════════
+
+let selectedFile  = null;
+let downloadBlob  = null;
+let outputName    = 'sidewalksch_formatted.xlsx';
+
+const dropZone     = document.getElementById('drop-zone');
+const fileInput    = document.getElementById('file-input');
+const fileDisplay  = document.getElementById('file-name-display');
+const processBtn   = document.getElementById('process-btn');
+const btnIcon      = document.getElementById('btn-icon');
+const btnText      = document.getElementById('btn-text');
+const statusArea   = document.getElementById('status-area');
+const resultsArea  = document.getElementById('results-area');
+const statsGrid    = document.getElementById('stats-grid');
+const downloadBtn  = document.getElementById('download-btn');
+
+// Drag-and-drop events
+['dragenter','dragover'].forEach(evt =>
+  dropZone.addEventListener(evt, e => { e.preventDefault(); dropZone.classList.add('drag-over'); })
+);
+['dragleave','drop'].forEach(evt =>
+  dropZone.addEventListener(evt, e => { e.preventDefault(); dropZone.classList.remove('drag-over'); })
+);
+dropZone.addEventListener('drop', e => {
+  const file = e.dataTransfer.files[0];
+  if (file) setFile(file);
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) setFile(fileInput.files[0]);
+});
+
+function setFile(file) {
+  if (!file.name.endsWith('.xlsx')) {
+    showStatus('error', '⚠️', 'Please select an .xlsx file.');
+    return;
+  }
+  selectedFile = file;
+  fileDisplay.textContent = '📄  ' + file.name;
+  fileDisplay.style.display = 'block';
+  processBtn.disabled = false;
+  resultsArea.style.display = 'none';
+  statusArea.style.display  = 'none';
+  downloadBlob = null;
+}
+
+function showStatus(type, icon, msg) {
+  statusArea.style.display = 'block';
+  statusArea.innerHTML = `<div class="status-msg ${type}"><span class="icon">${icon}</span><span>${msg}</span></div>`;
+}
+
+function setProcessing(on) {
+  processBtn.disabled = on;
+  if (on) {
+    btnIcon.outerHTML = '<span class="spinner" id="btn-icon"></span>';
+    document.getElementById('btn-icon').after();
+    btnText.textContent = 'Formatting…';
+  } else {
+    const spinner = document.querySelector('.spinner');
+    if (spinner) spinner.outerHTML = '<span id="btn-icon">⚙️</span>';
+    btnText.textContent = 'Format Schedule';
+  }
+}
+
+processBtn.addEventListener('click', async () => {
+  if (!selectedFile) return;
+  setProcessing(true);
+  statusArea.style.display  = 'none';
+  resultsArea.style.display = 'none';
+
+  try {
+    // Read file with SheetJS
+    const arrayBuffer = await selectedFile.arrayBuffer();
+    const wb          = XLSX.read(arrayBuffer, { type: 'array' });
+    const sheet       = wb.Sheets[wb.SheetNames[0]];
+    const rows        = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null });
+
+    // Parse
+    const { dateStr, sections } = parseRawRows(rows);
+    if (!sections.length) {
+      throw new Error('No section headers found. Is this the correct NYCDOT schedule file?');
+    }
+
+    // Build formatted workbook
+    const outWb = await buildWorkbook(dateStr, sections);
+
+    // Export to blob
+    const blobData = await outWb.outputAsync();
+    downloadBlob   = new Blob([blobData], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    });
+
+    // Build stats
+    const totalRows = sections.reduce((s, sec) => s + sec.rows.length, 0);
+    statsGrid.innerHTML = sections.map(sec => `
+      <div class="stat-box">
+        <div class="stat-num">${sec.rows.length}</div>
+        <div class="stat-label">${sec.header.replace(':', '')}</div>
+      </div>
+    `).join('') + `
+      <div class="stat-box" style="border-color:#6366f1;background:#eef2ff">
+        <div class="stat-num" style="color:#4338ca">${totalRows}</div>
+        <div class="stat-label">Total rows processed</div>
+      </div>`;
+
+    showStatus('success', '✅', `Done! <strong>${dateStr}</strong> — ${sections.length} sections, ${totalRows} rows formatted.`);
+    resultsArea.style.display = 'block';
+
+    // Set output filename based on input
+    outputName = selectedFile.name.replace(/\.xlsx$/i, '_formatted.xlsx');
+
+  } catch (err) {
+    console.error(err);
+    showStatus('error', '❌', 'Something went wrong: ' + err.message);
+  } finally {
+    setProcessing(false);
+  }
+});
+
+downloadBtn.addEventListener('click', () => {
+  if (!downloadBlob) return;
+  const url = URL.createObjectURL(downloadBlob);
+  const a   = document.createElement('a');
+  a.href     = url;
+  a.download = outputName;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+</script>
+</body>
 </html>
