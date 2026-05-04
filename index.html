@@ -591,15 +591,22 @@ async function buildWorkbook(dateStr, sections) {
   ws.column('C').width(20);
   ws.column('D').width(68);
 
-  const BORDER = { top: 'thin', bottom: 'thin', left: 'thin', right: 'thin' };
+  const BORDER = { top: 'medium', bottom: 'medium', left: 'medium', right: 'medium' };
 
   let r = 1;
 
-  // Plain cell — title block, no border
+  // Plain cell — title block rows, no border, size 11
   function plainCell(row, col, val, bold = false) {
     const cell = ws.cell(row, col);
     if (val !== null && val !== undefined) cell.value(val);
     cell.style({ fontFamily: 'Arial', fontSize: 11, bold, wrapText: true, verticalAlignment: 'center' });
+  }
+
+  // Section header cell — size 12, bold, no border
+  function sectionCell(row, col, val) {
+    const cell = ws.cell(row, col);
+    if (val !== null && val !== undefined) cell.value(val);
+    cell.style({ fontFamily: 'Arial', fontSize: 12, bold: true, wrapText: true, verticalAlignment: 'center' });
   }
 
   // Bordered cell — always applies border even if value is null/empty
@@ -627,7 +634,7 @@ async function buildWorkbook(dateStr, sections) {
     // Section label row — merged, bold, no border
     ws.range(r, 1, r, 4).merged(true);
     ws.row(r).height(15.75);
-    plainCell(r++, 1, sec.header, true);
+    sectionCell(r++, 1, sec.header);
 
     // ── Column header rows ────────────────────────────────
     // ALL 4 columns get a border — empty cells included.
@@ -638,17 +645,17 @@ async function buildWorkbook(dateStr, sections) {
       borderedCell(r, 3, null,      false, true);
       borderedCell(r, 4, null,      false);
       r++;
-      // Row B: col 1 empty, then Contract No. / CB / Location
+      // Row B: col 1 empty, then Contract No. / CB / Location — all bold
       borderedCell(r, 1, null,           false);
-      borderedCell(r, 2, 'Contract No.', false);
-      borderedCell(r, 3, 'CB',           false, true);
-      borderedCell(r, 4, 'Location',     false);
+      borderedCell(r, 2, 'Contract No.', true);
+      borderedCell(r, 3, 'CB',           true, true);
+      borderedCell(r, 4, 'Location',     true);
       r++;
     } else {
-      // Single header row — all 4 cols bordered (col 4 empty for sections without Location header)
+      // Single header row — all 4 cols bordered, all labels bold
       borderedCell(r, 1, 'Borough',      true);
-      borderedCell(r, 2, 'Contract No.', false);
-      borderedCell(r, 3, 'CB',           false, true);
+      borderedCell(r, 2, 'Contract No.', true);
+      borderedCell(r, 3, 'CB',           true, true);
       borderedCell(r, 4, null,           false);
       r++;
     }
@@ -818,7 +825,6 @@ processBtn.addEventListener('click', async () => {
     showStatus('success', '✅',
       `Formatting complete! &nbsp;<strong>${dateStr}</strong> — ${sections.length} sections, ${totalRows} rows.`);
     resultsArea.style.display = 'block';
-    outputName = selectedFile.name.replace(/\.xlsx$/i, '_formatted.xlsx');
 
   } catch (err) {
     console.error(err);
