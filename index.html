@@ -207,67 +207,6 @@
     }
     .status-msg .icon { font-size: 1rem; flex-shrink: 0; margin-top: .1rem; }
 
-    /* ── Stats ── */
-    #results-area { display: none; }
-    .stats-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
-      gap: .65rem;
-      margin-bottom: 1.25rem;
-    }
-    .stat-box {
-      background: var(--dark-mid);
-      border: 1px solid var(--dark-border);
-      border-radius: 7px;
-      padding: .75rem 1rem;
-    }
-    .stat-num {
-      font-size: 1.5rem;
-      font-weight: 700;
-      color: var(--rose);
-      font-family: 'IBM Plex Mono', monospace;
-      line-height: 1.1;
-    }
-    .stat-label { font-size: .73rem; color: var(--muted-lt); margin-top: .2rem; }
-
-    /* ── How it works ── */
-    .steps {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-      gap: 1rem;
-    }
-    .step { display: flex; gap: .8rem; align-items: flex-start; }
-    .step-num {
-      background: var(--rose);
-      color: white;
-      width: 24px; height: 24px;
-      border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      font-size: .72rem; font-weight: 700;
-      flex-shrink: 0; margin-top: .1rem;
-    }
-    .step-text strong { display: block; font-size: .875rem; font-weight: 600; margin-bottom: .2rem; }
-    .step-text span   { font-size: .8rem; color: var(--muted-lt); line-height: 1.4; }
-
-    /* ── Manual fixes ── */
-    .fixes-list {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: .4rem .75rem;
-    }
-    @media (max-width: 520px) { .fixes-list { grid-template-columns: 1fr; } }
-    .fix-item { display: flex; align-items: center; gap: .45rem; font-size: .8rem; color: var(--muted-lt); }
-    .fix-item code {
-      font-family: 'IBM Plex Mono', monospace;
-      background: var(--dark-mid);
-      border: 1px solid var(--dark-border);
-      padding: .1rem .35rem;
-      border-radius: 4px;
-      font-size: .75rem;
-      color: var(--light);
-    }
-    .arrow { color: var(--cyan); font-weight: 700; }
-
     /* ── Footer ── */
     footer {
       width: 100%;
@@ -307,7 +246,6 @@
 
   <!-- Upload -->
   <div class="card">
-    <div class="card-title">Step 1 — Upload Raw Schedule File</div>
     <div id="drop-zone">
       <input type="file" id="file-input" accept=".xlsx" />
       <span class="drop-icon">📂</span>
@@ -317,64 +255,14 @@
     </div>
   </div>
 
-  <!-- Process -->
+  <!-- Format + status + download all in one card -->
   <div class="card">
-    <div class="card-title">Step 2 — Format</div>
     <button id="process-btn" disabled>
       <span id="btn-icon">⚙️</span>
       <span id="btn-text">Format Schedule</span>
     </button>
     <div id="status-area"></div>
-  </div>
-
-  <!-- Download -->
-  <div class="card" id="results-area">
-    <div class="card-title">Step 3 — Download</div>
-    <div class="stats-grid" id="stats-grid"></div>
-    <button id="download-btn">⬇️ &nbsp;Download Formatted Excel</button>
-  </div>
-
-  <!-- How it works -->
-  <div class="card">
-    <div class="card-title">How It Works</div>
-    <div class="steps">
-      <div class="step">
-        <div class="step-num">1</div>
-        <div class="step-text">
-          <strong>Upload</strong>
-          <span>Drop the raw weekly NYCDOT schedule Excel file.</span>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num">2</div>
-        <div class="step-text">
-          <strong>Auto-format</strong>
-          <span>Abbreviations, capitalization, grid lines, empty rows removed.</span>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num">3</div>
-        <div class="step-text">
-          <strong>Download & review</strong>
-          <span>Do a quick pass for the known manual fixes, then export to PDF.</span>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Manual fixes -->
-  <div class="card">
-    <div class="card-title">Known Manual Fixes (usually ~12 entries)</div>
-    <div class="fixes-list">
-      <div class="fix-item"><code>E Macon Ave</code>   <span class="arrow">→</span> <code>East Macon Ave</code></div>
-      <div class="fix-item"><code>E Marcon Ave</code>  <span class="arrow">→</span> <code>East Marcon Ave</code></div>
-      <div class="fix-item"><code>S Beach Ave</code>   <span class="arrow">→</span> <code>South Beach Ave</code></div>
-      <div class="fix-item"><code>N Conduit Ave</code> <span class="arrow">→</span> <code>North Conduit Ave</code></div>
-      <div class="fix-item"><code>W Broadway</code>    <span class="arrow">→</span> <code>West Broadway</code></div>
-      <div class="fix-item"><code>W43rd St</code>      <span class="arrow">→</span> <code>W 43rd St</code></div>
-      <div class="fix-item"><code>Macdougal St</code>  <span class="arrow">→</span> <code>MacDougal St</code></div>
-      <div class="fix-item"><code>Punch-List</code>    <span class="arrow">→</span> <code>Punch-list</code></div>
-    </div>
+    <button id="download-btn" style="display:none; margin-top: 1rem;">⬇️ &nbsp;Download Formatted Excel</button>
   </div>
 
 </main>
@@ -739,8 +627,6 @@ const fileDisplay = document.getElementById('file-name-display');
 const processBtn  = document.getElementById('process-btn');
 const btnText     = document.getElementById('btn-text');
 const statusArea  = document.getElementById('status-area');
-const resultsArea = document.getElementById('results-area');
-const statsGrid   = document.getElementById('stats-grid');
 const downloadBtn = document.getElementById('download-btn');
 
 ['dragenter','dragover'].forEach(evt =>
@@ -766,7 +652,7 @@ function setFile(file) {
   fileDisplay.textContent = '📄  ' + file.name;
   fileDisplay.style.display = 'block';
   processBtn.disabled = false;
-  resultsArea.style.display = 'none';
+  downloadBtn.style.display = 'none';
   statusArea.style.display  = 'none';
   downloadBlob = null;
 }
@@ -792,7 +678,7 @@ processBtn.addEventListener('click', async () => {
   if (!selectedFile) return;
   setProcessing(true);
   statusArea.style.display  = 'none';
-  resultsArea.style.display = 'none';
+  downloadBtn.style.display = 'none';
 
   try {
     const arrayBuffer = await selectedFile.arrayBuffer();
@@ -803,28 +689,17 @@ processBtn.addEventListener('click', async () => {
     const { dateStr, sections } = parseRawRows(rows);
     if (!sections.length) throw new Error('No section headers found. Is this the correct NYCDOT schedule file?');
 
-    const outWb    = await buildWorkbook(dateStr, sections);
-    const rawData  = await outWb.outputAsync();       // Blob from xlsx-populate
-    const fixedData = await applyPageSetup(rawData);  // patch page setup via raw XML
-    downloadBlob   = new Blob([fixedData], {
+    const outWb     = await buildWorkbook(dateStr, sections);
+    const rawData   = await outWb.outputAsync();
+    const fixedData = await applyPageSetup(rawData);
+    downloadBlob    = new Blob([fixedData], {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     });
 
     const totalRows = sections.reduce((s, sec) => s + sec.rows.length, 0);
-    statsGrid.innerHTML = sections.map(sec => `
-      <div class="stat-box">
-        <div class="stat-num">${sec.rows.length}</div>
-        <div class="stat-label">${sec.header.replace(':', '')}</div>
-      </div>
-    `).join('') + `
-      <div class="stat-box" style="border-color:var(--cyan);background:rgba(59,255,232,.05)">
-        <div class="stat-num" style="color:var(--cyan)">${totalRows}</div>
-        <div class="stat-label">Total rows processed</div>
-      </div>`;
-
     showStatus('success', '✅',
       `Formatting complete! &nbsp;<strong>${dateStr}</strong> — ${sections.length} sections, ${totalRows} rows.`);
-    resultsArea.style.display = 'block';
+    downloadBtn.style.display = 'flex';
 
   } catch (err) {
     console.error(err);
